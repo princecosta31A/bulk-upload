@@ -13,9 +13,9 @@ import com.bulkupload.config.BulkUploadProperties;
 import com.bulkupload.dto.BulkUploadReport;
 import com.bulkupload.dto.DocumentUploadTask;
 import com.bulkupload.dto.UploadResult;
-import com.bulkupload.exception.DocumentUploadException;
 import com.bulkupload.parser.ManifestParserService;
 import com.bulkupload.report.ReportGeneratorService;
+import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * Main orchestration service for bulk document uploads.
@@ -71,7 +71,6 @@ public class BulkUploadService {
         BulkUploadReport report = new BulkUploadReport();
         report.setExecutionId(executionId);
         report.setManifestPath(properties.getManifestPath());
-        report.setSecondaryManifestPath(properties.getSecondaryManifestPath());
         report.markStarted();
 
         try {
@@ -129,6 +128,78 @@ public class BulkUploadService {
         }
     }
 
+    /**
+     * Executes the bulk upload process using JSON provided directly via API.
+     *
+     * @param jsonNode The JSON containing upload tasks
+     * @return Path to the generated report file
+     */
+    public String processUploadFromJson(JsonNode jsonNode) {
+        String executionId = generateExecutionId();
+        log.info("========================================");
+        log.info("Starting bulk upload execution from API JSON: {}", executionId);
+        log.info("========================================");
+
+        BulkUploadReport report = new BulkUploadReport();
+        report.setExecutionId(executionId);
+        report.setManifestPath("API Request (direct JSON)");
+        report.markStarted();
+
+        try {
+            // ======== PHASE 1: Parse JSON to Tasks ========
+            log.info("[Phase 1/4] Parsing JSON to tasks...");
+            List<DocumentUploadTask> tasks = manifestParser.parseJsonToTasks(jsonNode);
+            log.info("Parsed {} document entries from JSON", tasks.size());
+
+            if (tasks.isEmpty()) {
+                log.warn("No documents found in JSON. Nothing to upload.");
+                report.markCompleted();
+                return reportGenerator.generateReport(report);
+            }
+
+            // ======== PHASE 2: Validate Tasks ========
+            log.info("[Phase 2/4] Validating {} tasks...", tasks.size());
+            List<String> validationErrors = validateTasks(tasks, report);
+
+            if (properties.isPreValidateManifest() && !validationErrors.isEmpty()) {
+                log.warn("Pre-validation found {} issues", validationErrors.size());
+                validationErrors.forEach(err -> log.warn("  - {}", err));
+            }
+
+            // ======== PHASE 3: Execute Uploads ========
+            log.info("[Phase 3/4] Executing uploads...");
+            boolean shouldContinue = executeUploads(tasks, report);
+
+            if (!shouldContinue) {
+                log.warn("Upload execution was aborted");
+                report.markAborted("Execution stopped due to error (continueOnError=false)");
+            } else {
+                report.markCompleted();
+            }
+
+            // ======== PHASE 4: Generate Report ========
+            log.info("[Phase 4/4] Generating report...");
+            String reportPath = reportGenerator.generateReport(report);
+
+            // Log summary
+            log.info(reportGenerator.generateSummary(report));
+
+            return reportPath;
+
+        } catch (Exception e) {
+            log.error("Bulk upload execution failed: {}", e.getMessage(), e);
+            report.markFailed(e.getMessage());
+
+            // Still try to generate a report even on failure
+            try {
+                return reportGenerator.generateReport(report);
+            } catch (Exception reportError) {
+                log.error("Failed to generate failure report: {}", reportError.getMessage());
+                return "(execution failed: " + e.getMessage() + ")";
+            }
+        }
+    }
+
     // ============================================================
     // PHASE 2: VALIDATION
     // ============================================================
@@ -174,6 +245,7 @@ public class BulkUploadService {
             report.addResult(result);
             
             // Check if we should stop processing
+            log.info("Should Continue :{}", shouldContinue(result));
             if (!shouldContinue(result)) {
                 log.warn("Stopping execution after task[{}] due to error", task.getManifestIndex());
                 

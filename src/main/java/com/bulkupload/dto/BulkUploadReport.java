@@ -4,11 +4,16 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+import lombok.Getter;
+import lombok.Setter;
+
 /**
  * Represents the complete report of a bulk upload execution.
- * 
+ *
  * Contains summary statistics and detailed results for each document.
  */
+@Getter
+@Setter
 public class BulkUploadReport {
 
     // ============================================================
@@ -39,11 +44,6 @@ public class BulkUploadReport {
      * Path to the manifest file that was processed.
      */
     private String manifestPath;
-    
-    /**
-     * Path to the secondary manifest if used.
-     */
-    private String secondaryManifestPath;
 
     // ============================================================
     // SUMMARY STATISTICS
@@ -220,56 +220,4 @@ public class BulkUploadReport {
             totalDocuments, successCount, failedCount, skippedCount, errorCount, successRate
         );
     }
-
-    // ============================================================
-    // GETTERS AND SETTERS
-    // ============================================================
-    
-    public String getExecutionId() { return executionId; }
-    public void setExecutionId(String executionId) { this.executionId = executionId; }
-
-    public Instant getStartedAt() { return startedAt; }
-    public void setStartedAt(Instant startedAt) { this.startedAt = startedAt; }
-
-    public Instant getFinishedAt() { return finishedAt; }
-    public void setFinishedAt(Instant finishedAt) { this.finishedAt = finishedAt; }
-
-    public long getTotalDurationMs() { return totalDurationMs; }
-    public void setTotalDurationMs(long totalDurationMs) { this.totalDurationMs = totalDurationMs; }
-
-    public String getManifestPath() { return manifestPath; }
-    public void setManifestPath(String manifestPath) { this.manifestPath = manifestPath; }
-
-    public String getSecondaryManifestPath() { return secondaryManifestPath; }
-    public void setSecondaryManifestPath(String secondaryManifestPath) { this.secondaryManifestPath = secondaryManifestPath; }
-
-    public int getTotalDocuments() { return totalDocuments; }
-    public void setTotalDocuments(int totalDocuments) { this.totalDocuments = totalDocuments; }
-
-    public int getSuccessCount() { return successCount; }
-    public void setSuccessCount(int successCount) { this.successCount = successCount; }
-
-    public int getFailedCount() { return failedCount; }
-    public void setFailedCount(int failedCount) { this.failedCount = failedCount; }
-
-    public int getSkippedCount() { return skippedCount; }
-    public void setSkippedCount(int skippedCount) { this.skippedCount = skippedCount; }
-
-    public int getErrorCount() { return errorCount; }
-    public void setErrorCount(int errorCount) { this.errorCount = errorCount; }
-
-    public double getSuccessRate() { return successRate; }
-    public void setSuccessRate(double successRate) { this.successRate = successRate; }
-
-    public List<UploadResult> getResults() { return results; }
-    public void setResults(List<UploadResult> results) { this.results = results; }
-
-    public List<UploadResult> getFailures() { return failures; }
-    public void setFailures(List<UploadResult> failures) { this.failures = failures; }
-
-    public ExecutionStatus getExecutionStatus() { return executionStatus; }
-    public void setExecutionStatus(ExecutionStatus executionStatus) { this.executionStatus = executionStatus; }
-
-    public String getExecutionErrorMessage() { return executionErrorMessage; }
-    public void setExecutionErrorMessage(String executionErrorMessage) { this.executionErrorMessage = executionErrorMessage; }
 }

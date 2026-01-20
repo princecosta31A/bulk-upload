@@ -174,9 +174,6 @@ public class ReportGeneratorService {
         metadata.put("durationMs", report.getTotalDurationMs());
         metadata.put("durationFormatted", formatDuration(report.getTotalDurationMs()));
         metadata.put("manifestPath", report.getManifestPath());
-        if (report.getSecondaryManifestPath() != null) {
-            metadata.put("secondaryManifestPath", report.getSecondaryManifestPath());
-        }
         if (report.getExecutionErrorMessage() != null) {
             metadata.put("errorMessage", report.getExecutionErrorMessage());
         }

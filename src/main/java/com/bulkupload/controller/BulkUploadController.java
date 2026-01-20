@@ -2,23 +2,29 @@ package com.bulkupload.controller;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.bulkupload.config.BulkUploadProperties;
+import com.bulkupload.kafka.BulkUploadKafkaProducer;
 import com.bulkupload.service.BulkUploadService;
+import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * REST controller for triggering and monitoring bulk upload operations.
- * 
+ *
  * Endpoints:
- * - POST /api/v1/bulk-upload/run - Trigger a bulk upload execution
+ * - POST /api/v1/bulk-upload/run - Trigger a bulk upload execution from configured manifest file
+ * - POST /api/v1/bulk-upload/upload - Trigger a bulk upload execution from JSON in request body
+ * - POST /api/v1/bulk-upload/publish - Publish JSON to Kafka topic for asynchronous processing
  * - GET /api/v1/bulk-upload/config - View current configuration
  * - GET /api/v1/bulk-upload/health - Check service health
  */
@@ -30,11 +36,14 @@ public class BulkUploadController {
 
     private final BulkUploadService bulkUploadService;
     private final BulkUploadProperties properties;
+    private final Optional<BulkUploadKafkaProducer> kafkaProducer;
 
-    public BulkUploadController(BulkUploadService bulkUploadService, 
-                                BulkUploadProperties properties) {
+    public BulkUploadController(BulkUploadService bulkUploadService,
+                                BulkUploadProperties properties,
+                                Optional<BulkUploadKafkaProducer> kafkaProducer) {
         this.bulkUploadService = bulkUploadService;
         this.properties = properties;
+        this.kafkaProducer = kafkaProducer;
     }
 
     // ============================================================
@@ -82,6 +91,94 @@ public class BulkUploadController {
         }
     }
 
+    /**
+     * Triggers a bulk upload execution using JSON provided in the request body.
+     *
+     * The process is synchronous - the response is returned only after
+     * all uploads are completed and the report is generated.
+     *
+     * @param jsonNode The JSON containing upload tasks (requestHeaders, applications/documents)
+     * @return Response containing the path to the generated report
+     */
+    @PostMapping("/upload")
+    public ResponseEntity<Map<String, Object>> uploadFromJson(@RequestBody JsonNode jsonNode) {
+        log.info("Received request to execute bulk upload from JSON");
+
+        try {
+            // Execute the bulk upload from JSON
+            String reportPath = bulkUploadService.processUploadFromJson(jsonNode);
+
+            // Build response
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("status", "COMPLETED");
+            response.put("message", "Bulk upload completed. Check the report for details.");
+            response.put("reportPath", reportPath);
+
+            log.info("Bulk upload from JSON completed. Report: {}", reportPath);
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Bulk upload execution from JSON failed: {}", e.getMessage(), e);
+
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("status", "FAILED");
+            response.put("message", "Bulk upload execution failed");
+            response.put("error", e.getMessage());
+
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * Publishes a bulk upload request to Kafka topic for asynchronous processing.
+     *
+     * This endpoint is only available when Kafka is enabled (bulk.kafkaEnabled=true).
+     * The message will be published to the configured Kafka topic and processed
+     * asynchronously by the Kafka consumer.
+     *
+     * @param jsonNode The JSON containing upload tasks (requestHeaders, applications/documents)
+     * @return Response indicating whether the message was published successfully
+     */
+    @PostMapping("/publish")
+    public ResponseEntity<Map<String, Object>> publishToKafka(@RequestBody JsonNode jsonNode) {
+        log.info("Received request to publish bulk upload message to Kafka");
+
+        // Check if Kafka is enabled
+        if (kafkaProducer.isEmpty()) {
+            log.warn("Kafka is not enabled. Cannot publish message.");
+
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("status", "FAILED");
+            response.put("message", "Kafka is not enabled. Please set bulk.kafkaEnabled=true in configuration.");
+
+            return ResponseEntity.badRequest().body(response);
+        }
+
+        try {
+            // Publish message to Kafka
+            kafkaProducer.get().publishBulkUploadRequest(jsonNode);
+
+            // Build response
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("status", "PUBLISHED");
+            response.put("message", "Bulk upload request published to Kafka topic successfully. Processing will happen asynchronously.");
+            response.put("topic", properties.getKafkaTopic());
+
+            log.info("Message published to Kafka topic: {}", properties.getKafkaTopic());
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Failed to publish message to Kafka: {}", e.getMessage(), e);
+
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("status", "FAILED");
+            response.put("message", "Failed to publish message to Kafka");
+            response.put("error", e.getMessage());
+
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
     // ============================================================
     // CONFIGURATION ENDPOINTS
     // ============================================================
@@ -96,9 +193,7 @@ public class BulkUploadController {
         
         // Manifest configuration
         Map<String, Object> manifest = new LinkedHashMap<>();
-        manifest.put("primaryPath", properties.getManifestPath());
-        manifest.put("secondaryPath", properties.getSecondaryManifestPath());
-        manifest.put("correlationKey", properties.getManifestCorrelationKey());
+        manifest.put("path", properties.getManifestPath());
         config.put("manifest", manifest);
         
         // Upload configuration
@@ -135,7 +230,17 @@ public class BulkUploadController {
         headers.put("tenantIdConfigured", properties.getDefaultHeaders().getTenantId() != null);
         headers.put("workspaceIdConfigured", properties.getDefaultHeaders().getWorkspaceId() != null);
         config.put("defaultHeaders", headers);
-        
+
+        // Kafka configuration
+        Map<String, Object> kafka = new LinkedHashMap<>();
+        kafka.put("enabled", properties.isKafkaEnabled());
+        if (properties.isKafkaEnabled()) {
+            kafka.put("bootstrapServers", properties.getKafkaBootstrapServers());
+            kafka.put("topic", properties.getKafkaTopic());
+            kafka.put("consumerGroupId", properties.getKafkaConsumerGroupId());
+        }
+        config.put("kafka", kafka);
+
         return ResponseEntity.ok(config);
     }
 

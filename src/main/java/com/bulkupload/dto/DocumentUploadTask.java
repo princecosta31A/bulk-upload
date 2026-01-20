@@ -6,15 +6,20 @@ import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import lombok.Getter;
+import lombok.Setter;
+
 /**
  * Represents a single document upload task extracted from the manifest.
- * 
+ *
  * This DTO encapsulates all information needed to upload one document:
  * - File location (resolved to actual File object)
  * - Metadata to send with the upload
  * - Per-document header overrides
  * - Correlation ID for tracking/linking with other manifests
  */
+@Getter
+@Setter
 public class DocumentUploadTask {
 
     // ============================================================
@@ -62,12 +67,18 @@ public class DocumentUploadTask {
     // ============================================================
     // METADATA
     // ============================================================
-    
+
     /**
      * Raw metadata JSON node from manifest.
      * Preserved for flexibility - can contain any structure.
      */
     private JsonNode metadata;
+
+    /**
+     * Application metadata from the manifest.
+     * Contains application-level information like applicationId.
+     */
+    private JsonNode applicationMetadata;
 
     // ============================================================
     // HEADER OVERRIDES
@@ -119,34 +130,6 @@ public class DocumentUploadTask {
             headerOverrides.put(headerName, value);
         }
     }
-
-    // ============================================================
-    // GETTERS AND SETTERS
-    // ============================================================
-    
-    public String getDocumentId() { return documentId; }
-    public void setDocumentId(String documentId) { this.documentId = documentId; }
-
-    public int getManifestIndex() { return manifestIndex; }
-    public void setManifestIndex(int manifestIndex) { this.manifestIndex = manifestIndex; }
-
-    public String getFilePath() { return filePath; }
-    public void setFilePath(String filePath) { this.filePath = filePath; }
-
-    public File getResolvedFile() { return resolvedFile; }
-    public void setResolvedFile(File resolvedFile) { this.resolvedFile = resolvedFile; }
-
-    public boolean isFileValid() { return fileValid; }
-    public void setFileValid(boolean fileValid) { this.fileValid = fileValid; }
-
-    public String getFileValidationError() { return fileValidationError; }
-    public void setFileValidationError(String fileValidationError) { this.fileValidationError = fileValidationError; }
-
-    public JsonNode getMetadata() { return metadata; }
-    public void setMetadata(JsonNode metadata) { this.metadata = metadata; }
-
-    public Map<String, String> getHeaderOverrides() { return headerOverrides; }
-    public void setHeaderOverrides(Map<String, String> headerOverrides) { this.headerOverrides = headerOverrides; }
 
     @Override
     public String toString() {

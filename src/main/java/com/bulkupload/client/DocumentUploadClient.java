@@ -186,13 +186,27 @@ public class DocumentUploadClient {
 
     /**
      * Serializes task metadata to JSON string.
+     * Merges applicationMetadata with document metadata.
      */
     private String serializeMetadata(DocumentUploadTask task) {
         try {
-            if (task.getMetadata() != null) {
-                return objectMapper.writeValueAsString(task.getMetadata());
+            com.fasterxml.jackson.databind.node.ObjectNode finalMetadata = objectMapper.createObjectNode();
+
+            // Add applicationMetadata if present
+            if (task.getApplicationMetadata() != null && task.getApplicationMetadata().isObject()) {
+                task.getApplicationMetadata().fields().forEachRemaining(entry ->
+                    finalMetadata.set(entry.getKey(), entry.getValue())
+                );
             }
-            return "{}";
+
+            // Add document metadata if present (overwrites applicationMetadata fields if duplicated)
+            if (task.getMetadata() != null && task.getMetadata().isObject()) {
+                task.getMetadata().fields().forEachRemaining(entry ->
+                    finalMetadata.set(entry.getKey(), entry.getValue())
+                );
+            }
+
+            return objectMapper.writeValueAsString(finalMetadata);
         } catch (Exception e) {
             log.warn("Failed to serialize metadata, using empty object: {}", e.getMessage());
             return "{}";

@@ -4,15 +4,20 @@ import java.time.Instant;
 
 import org.springframework.http.HttpStatusCode;
 
+import lombok.Getter;
+import lombok.Setter;
+
 /**
  * Represents the result of a single document upload attempt.
- * 
+ *
  * Captures all relevant information about what happened during upload:
  * - Timing information
  * - HTTP response details
  * - Error information if failed
  * - Retry attempt count
  */
+@Getter
+@Setter
 public class UploadResult {
 
     // ============================================================
@@ -189,41 +194,4 @@ public class UploadResult {
         result.lastErrorMessage = validationError;
         return result;
     }
-
-    // ============================================================
-    // GETTERS AND SETTERS
-    // ============================================================
-    
-    public DocumentUploadTask getTask() { return task; }
-    public void setTask(DocumentUploadTask task) { this.task = task; }
-
-    public Status getStatus() { return status; }
-    public void setStatus(Status status) { this.status = status; }
-
-    public Instant getStartedAt() { return startedAt; }
-    public void setStartedAt(Instant startedAt) { this.startedAt = startedAt; }
-
-    public Instant getFinishedAt() { return finishedAt; }
-    public void setFinishedAt(Instant finishedAt) { this.finishedAt = finishedAt; }
-
-    public long getDurationMs() { return durationMs; }
-    public void setDurationMs(long durationMs) { this.durationMs = durationMs; }
-
-    public HttpStatusCode getHttpStatus() { return httpStatus; }
-    public void setHttpStatus(HttpStatusCode httpStatus) { this.httpStatus = httpStatus; }
-
-    public String getResponseBody() { return responseBody; }
-    public void setResponseBody(String responseBody) { this.responseBody = responseBody; }
-
-    public ApiErrorResponse getApiError() { return apiError; }
-    public void setApiError(ApiErrorResponse apiError) { this.apiError = apiError; }
-
-    public int getAttemptCount() { return attemptCount; }
-    public void setAttemptCount(int attemptCount) { this.attemptCount = attemptCount; }
-
-    public String getLastErrorMessage() { return lastErrorMessage; }
-    public void setLastErrorMessage(String lastErrorMessage) { this.lastErrorMessage = lastErrorMessage; }
-
-    public String getExceptionType() { return exceptionType; }
-    public void setExceptionType(String exceptionType) { this.exceptionType = exceptionType; }
 }
